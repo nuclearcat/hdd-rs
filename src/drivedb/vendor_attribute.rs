@@ -8,10 +8,13 @@ Attribute descriptions usually come from two sources:
 
 Format for attribute descriptions is described in [smartctl(8)](https://www.smartmontools.org/browser/trunk/smartmontools/smartctl.8.in) (option `-v`/`--vendorattribute`).
 */
-use std::str;
-
-use nom;
-use nom::digit;
+use nom::branch::alt;
+use nom::bytes::complete::{tag, take_till1};
+use nom::character::complete::{char, digit1};
+use nom::combinator::{eof, map, map_res, opt, value};
+use nom::sequence::preceded;
+use nom::IResult;
+use nom::Parser;
 
 quick_error! {
 	#[derive(Debug)]
@@ -42,69 +45,48 @@ pub struct Attribute {
 	pub drivetype: Option<Type>,
 }
 
-fn not_comma(c: u8) -> bool { c == b',' }
-fn not_comma_nor_colon(c: u8) -> bool { c == b',' || c == b':' }
-
-// `opt!()` is used with `complete!()` here because the former returns `Incomplete` untouched, thus making attributes not ending with otherwise optional ',(HDD|SSD)' `Incomplete` as well.
-named!(parse_standard <Attribute>, do_parse!(
-	id: alt!(
-		// XXX map_res!()?
-		map!(digit, |x: &[u8]| str::from_utf8(x).unwrap().parse::<u8>().ok())
-		// > If 'N' is specified as ID, the settings for all Attributes are changed
-		| do_parse!(char!('N') >> (None))
-	) >>
-	char!(',') >>
-	format: map_res!(
-		take_till1_s!(not_comma_nor_colon),
-		str::from_utf8
-	) >>
+fn parse_standard(input: &str) -> IResult<&str, Attribute> {
+	let (input, id) = alt((
+		map_res(digit1, |s: &str| s.parse::<u8>().map(Some)),
+		map(char('N'), |_| None),
+	)).parse(input)?;
+	let (input, _) = char(',')(input)?;
+	let (input, format) = take_till1(|c| c == ',' || c == ':')(input)?;
 	// TODO '+' for ATTRFLAG_INCREASING
-	byte_order: opt!(complete!(do_parse!( // TODO len()<6 should be invalid
-		char!(':') >>
-		byteorder: map_res!(
-			take_till1_s!(not_comma),
-			str::from_utf8
-		) >>
-		(byteorder)
-	))) >>
-	name_drive_type: opt!(complete!(do_parse!(
-		char!(',') >>
-		name: map_res!(
-			take_till1_s!(not_comma),
-			str::from_utf8
-		) >>
-		drive_type: opt!(complete!(do_parse!(
-			char!(',') >>
-			drive_type: alt!(tag!("HDD") | tag!("SSD")) >>
-			(match str::from_utf8(drive_type) {
-				Ok("HDD") => Type::HDD,
-				Ok("SSD") => Type::SSD,
-				_ => unreachable!(),
-			})
-		))) >>
-		(name, drive_type)
-	))) >>
-	eof!() >>
-	({
-		let (name, drive_type) = match name_drive_type {
-			Some((name, drive_type)) => (Some(name), drive_type),
-			None => (None, None),
-		};
-		let default_byte_order = match format {
-			// default byte orders, from ata_get_attr_raw_value, atacmds.cpp
-			"raw64" | "hex64" => "543210wv",
-			"raw56" | "hex56" | "raw24/raw32" | "msec24hour32" => "r543210",
-			_ => "543210",
-		};
+	let (input, byte_order) = opt(preceded(char(':'), take_till1(|c| c == ','))).parse(input)?;
+	let (input, name_drive_type) = opt(preceded(
+		char(','),
+		(
+			take_till1(|c| c == ','),
+			opt(preceded(
+				char(','),
+				alt((value(Type::HDD, tag("HDD")), value(Type::SSD, tag("SSD")))),
+			)),
+		),
+	)).parse(input)?;
+	let (input, _) = eof(input)?;
+
+	let (name, drive_type) = match name_drive_type {
+		Some((name, drive_type)) => (Some(name), drive_type),
+		None => (None, None),
+	};
+	let default_byte_order = match format {
+		// default byte orders, from ata_get_attr_raw_value, atacmds.cpp
+		"raw64" | "hex64" => "543210wv",
+		"raw56" | "hex56" | "raw24/raw32" | "msec24hour32" => "r543210",
+		_ => "543210",
+	};
+	Ok((
+		input,
 		Attribute {
 			id: id,
 			name: name.map(|x| x.to_string()),
 			format: format.to_string(),
 			byte_order: byte_order.unwrap_or(default_byte_order).to_string(),
 			drivetype: drive_type,
-		}
-	})
-));
+		},
+	))
+}
 
 /**
 Parses single attribute description (`-v` option argument).
@@ -132,10 +114,8 @@ pub fn parse(s: &str) -> Result<Attribute, Error> {
 		"220,temp" => "220,tempminmax,Temperature_Celsius",
 		s => s,
 	};
-	// FIXME strings to bytes to strings again… sounds really stupid
-	match parse_standard(s.as_bytes()) {
-		nom::IResult::Done(_, attr) => Ok(attr),
-		nom::IResult::Error(_) => Err(Error::Parse), // TODO?
-		nom::IResult::Incomplete(_) => Err(Error::Parse), // TODO?
+	match parse_standard(s) {
+		Ok((_, attr)) => Ok(attr),
+		Err(_) => Err(Error::Parse), // TODO?
 	}
 }

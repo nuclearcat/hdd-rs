@@ -1,30 +1,36 @@
-use nom::multispace;
+use nom::branch::alt;
+use nom::bytes::complete::{tag, take_until};
+use nom::character::complete::{char, multispace1, none_of, one_of};
+use nom::combinator::{eof, map, opt, value};
+use nom::multi::{many0, many1};
+use nom::sequence::{delimited, preceded, terminated};
+use nom::IResult;
+use nom::Parser;
 
-named!(comment_block, do_parse!(
-	tag!("/*") >>
-	take_until!("*/") >>
-	tag!("*/") >>
-	(&[])
-));
+fn comment_block(input: &str) -> IResult<&str, ()> {
+	let (input, _) = tag("/*")(input)?;
+	let (input, _) = take_until("*/")(input)?;
+	let (input, _) = tag("*/")(input)?;
+	Ok((input, ()))
+}
 
-named!(comment, do_parse!(
-	tag!("//") >>
-	take_until!("\n") >>
-	char!('\n') >>
-	(&[])
-));
+fn comment(input: &str) -> IResult<&str, ()> {
+	let (input, _) = tag("//")(input)?;
+	let (input, _) = take_until("\n")(input)?;
+	let (input, _) = opt(char('\n')).parse(input)?;
+	Ok((input, ()))
+}
 
-named!(whitespace, do_parse!(
-	many0!(alt!(
-		multispace | comment | comment_block
-	)) >>
-	(&[])
-));
+fn whitespace(input: &str) -> IResult<&str, ()> {
+	let (input, _) = many0(alt((value((), multispace1), comment, comment_block))).parse(input)?;
+	Ok((input, ()))
+}
 
 // TODO? \[bfav?0] \ooo \xhh
-named!(string_escaped_char <char>, do_parse!(
-	char!('\\') >>
-	s: map!(one_of!("\\\"'nrt"), |c| match c {
+fn string_escaped_char(input: &str) -> IResult<&str, char> {
+	let (input, _) = char('\\')(input)?;
+	let (input, c) = one_of("\\\"'nrt")(input)?;
+	let c = match c {
 		'\\' => '\\',
 		'"' => '"',
 		'\'' => '\'',
@@ -32,38 +38,31 @@ named!(string_escaped_char <char>, do_parse!(
 		'r' => '\r',
 		't' => '\t',
 		_ => unreachable!(),
-	}) >>
-	(s)
-));
+	};
+	Ok((input, c))
+}
 
-named!(string_char <char>, alt!(
-	none_of!("\n\\\"")
-	| string_escaped_char
-));
+fn string_char(input: &str) -> IResult<&str, char> {
+	alt((none_of("\n\\\""), string_escaped_char)).parse(input)
+}
 
-named!(string_literal <String>, do_parse!(
-	char!('\"') >>
-	s: map!(
-		many0!(string_char),
-		|s: Vec<char>| { s.into_iter().collect() }
-	) >>
-	char!('\"') >>
-	(s)
-));
+fn string_literal(input: &str) -> IResult<&str, String> {
+	delimited(
+		char('"'),
+		map(many0(string_char), |s: Vec<char>| s.into_iter().collect()),
+		char('"')
+	).parse(input)
+}
 
-named!(string <String>, do_parse!(
-	s0: string_literal >>
-	ss: many0!(do_parse!(
-		whitespace >>
-		s: string_literal >>
-		(s)
-	)) >>
-	({
-		let mut s = s0.to_owned();
-		for i in ss { s.push_str(i.as_str()) }
-		s
-	})
-));
+fn string(input: &str) -> IResult<&str, String> {
+	let (input, s0) = string_literal(input)?;
+	let (input, ss) = many0(preceded(whitespace, string_literal)).parse(input)?;
+	let mut s = s0;
+	for i in ss {
+		s.push_str(i.as_str());
+	}
+	Ok((input, s))
+}
 
 /// drivedb.h entry
 #[derive(Debug)]
@@ -89,34 +88,49 @@ pub struct Entry {
 	pub presets: String,
 }
 
-named!(comma, do_parse!(whitespace >> char!(',') >> whitespace >> (&[])));
+fn comma(input: &str) -> IResult<&str, ()> {
+	let (input, _) = whitespace(input)?;
+	let (input, _) = char(',')(input)?;
+	let (input, _) = whitespace(input)?;
+	Ok((input, ()))
+}
 
-named!(entry <Entry>, do_parse!(
-	char!('{') >> whitespace >>
-	family: string >> comma >>
-	model: string >> comma >>
-	firmware: string >> comma >>
-	warning: string >> comma >>
-	presets: string >> whitespace >>
-	char!('}') >>
-	(Entry {
-		family: family,
-		model: model,
-		firmware: firmware,
-		warning: warning,
-		presets: presets,
-	})
-));
+fn entry(input: &str) -> IResult<&str, Entry> {
+	let (input, _) = char('{')(input)?;
+	let (input, _) = whitespace(input)?;
+	let (input, family) = string(input)?;
+	let (input, _) = comma(input)?;
+	let (input, model) = string(input)?;
+	let (input, _) = comma(input)?;
+	let (input, firmware) = string(input)?;
+	let (input, _) = comma(input)?;
+	let (input, warning) = string(input)?;
+	let (input, _) = comma(input)?;
+	let (input, presets) = string(input)?;
+	let (input, _) = whitespace(input)?;
+	let (input, _) = char('}')(input)?;
+	Ok((
+		input,
+		Entry {
+			family: family,
+			model: model,
+			firmware: firmware,
+			warning: warning,
+			presets: presets,
+		},
+	))
+}
 
-named!(pub database <Vec<Entry>>, do_parse!(
-	whitespace >>
-	entries: many1!(do_parse!(
-		e: entry >> comma >> (e)
-	)) >>
-	whitespace >>
-	eof!() >>
-	(entries.into_iter().filter(|entry| {
-		// > The entry is ignored if [modelfamily] starts with a dollar sign.
-		!entry.family.starts_with('$')
-	}).collect())
-));
+pub fn database(input: &str) -> IResult<&str, Vec<Entry>> {
+	let (input, _) = whitespace(input)?;
+	let (input, entries) = many1(terminated(entry, comma)).parse(input)?;
+	let (input, _) = whitespace(input)?;
+	let (input, _) = eof(input)?;
+	let entries = entries.into_iter()
+		.filter(|entry| {
+			// > The entry is ignored if [modelfamily] starts with a dollar sign.
+			!entry.family.starts_with('$')
+		})
+		.collect();
+	Ok((input, entries))
+}

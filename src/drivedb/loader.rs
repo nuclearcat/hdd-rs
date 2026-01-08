@@ -5,8 +5,6 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::io;
 
-use nom;
-
 use regex; // for Loader.db() error type
 
 quick_error! {
@@ -30,10 +28,10 @@ fn load(file: &str) -> Result<Vec<Entry>, Error> {
 	let mut db = Vec::new();
 	File::open(&file)?.read_to_end(&mut db)?;
 
-	match parser::database(&db) {
-		nom::IResult::Done(_, entries) => Ok(entries),
-		nom::IResult::Error(_) => Err(Error::Parse),
-		nom::IResult::Incomplete(_) => unreachable!(), // XXX is it true?
+	let db = ::std::str::from_utf8(&db).map_err(|_| Error::Parse)?;
+	match parser::database(db) {
+		Ok((_, entries)) => Ok(entries),
+		Err(_) => Err(Error::Parse),
 	}
 }
 

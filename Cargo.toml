@@ -13,7 +13,7 @@ members = ["sample-scsi", "drivedb-bench"]
 
 [dependencies]
 libc = "0.2"
-nom = "^2.2"
+nom = "^8.0"
 regex = "0.2"
 byteorder = "1"
 quick-error = "1.2"
@@ -29,7 +29,7 @@ serde_json = { version = "0.9", optional = true }
 separator = { version = "0.3.1", optional = true }
 number_prefix = { version = "0.2.7", optional = true }
 prettytable-rs = { version = "^0.6", optional = true }
-env_logger = { version = "0.5", optional = true }
+env_logger = { version = "0.11.8", optional = true }
 lazy_static = { version = "1.0", optional = true }
 
 [features]
@@ -40,7 +40,7 @@ bin = ["clap", "serde_json", "separator", "number_prefix", "prettytable-rs", "en
 cargo-clippy = []
 
 [target.'cfg(target_os = "freebsd")'.build-dependencies]
-bindgen = "0.31.0"
+bindgen = "0.72.1"
 
 [[bin]]
 name = "hdd"
