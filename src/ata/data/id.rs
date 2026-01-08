@@ -137,6 +137,11 @@ pub struct Id {
 	pub trim_supported: bool,
 	pub trim_deterministic: bool,
 	pub trim_zeroed: bool,
+	pub dsn_available: bool,
+	pub dsn_enabled: bool,
+	pub sct_feature_control_supported: bool,
+	pub security_state: u16,
+	pub security_master_pw_id: u16,
 
 	pub commands_supported: IdCommands,
 
@@ -443,6 +448,13 @@ pub fn parse_id(data: &Vec<u8>) -> Id {
 		// DRAT/RZAT flags live in word 69, not word 169.
 		trim_deterministic: data[69] & (1 << 14) != 0,
 		trim_zeroed: data[69] & (1 << 5) != 0,
+		dsn_available: (data[86] & 0x8000) != 0
+			&& (data[119] & 0xc200) == 0x4200
+			&& (data[120] & 0xc000) == 0x4000,
+		dsn_enabled: (data[120] & 0x0200) != 0,
+		sct_feature_control_supported: (data[206] & 0x0010) != 0,
+		security_state: data[128],
+		security_master_pw_id: data[92],
 
 		commands_supported: IdCommands {
 			// XXX these, according to ATA8-ACS rev 62, should be mirrored in 'feature status' words

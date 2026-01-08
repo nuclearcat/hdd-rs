@@ -23,6 +23,57 @@ fn bool_to_sup(b: bool) -> &'static str {
 	else { "not supported" }
 }
 
+fn ternary_feature_status(x: &id::Ternary) -> &'static str {
+	match x {
+		id::Ternary::Unsupported => "Unavailable",
+		id::Ternary::Disabled => "Disabled",
+		id::Ternary::Enabled => "Enabled",
+	}
+}
+
+fn ata_security_status(state: u16, master_password_id: u16) -> String {
+	if (state & 0x0001) == 0 {
+		return "Unavailable".to_string();
+	}
+
+	let mut out = String::new();
+	if (state & 0x0002) == 0 {
+		out.push_str("Disabled, ");
+		if (state & 0x0008) == 0 {
+			out.push_str("NOT FROZEN [SEC1]");
+		} else {
+			out.push_str("frozen [SEC2]");
+		}
+	} else {
+		out.push_str("ENABLED, PW level ");
+		if (state & 0x0100) == 0 {
+			out.push_str("HIGH");
+		} else {
+			out.push_str("MAX");
+		}
+
+		if (state & 0x0004) == 0 {
+			out.push_str(", not locked, ");
+			if (state & 0x0008) == 0 {
+				out.push_str("not frozen [SEC5]");
+			} else {
+				out.push_str("frozen [SEC6]");
+			}
+		} else {
+			out.push_str(", **LOCKED** [SEC4]");
+			if (state & 0x0010) != 0 {
+				out.push_str(", PW ATTEMPTS EXCEEDED");
+			}
+		}
+	}
+
+	if 0x0000 < master_password_id && master_password_id < 0xfffe {
+		out.push_str(&format!(", Master PW ID: 0x{:04x}", master_password_id));
+	}
+
+	out
+}
+
 fn print_ata_id(id: &id::Id, meta: &Option<drivedb::DriveMeta>) {
 	if id.incomplete { print!("WARNING: device reports information it provides is incomplete\n\n"); }
 
@@ -100,18 +151,34 @@ fn print_ata_id(id: &id::Id, meta: &Option<drivedb::DriveMeta>) {
 	// The following guide, when printed, is exactly 80 characters
 	// ... "..............................................................supported disabled\n"
 	print!("Host protected area:           {}\n", id.hpa);
-	print!("Advanced Power Management:     {}\n", id.apm);
-	print!("Automatic Acoustic Management: {}\n", id.aam);
-	print!("Read look-ahead:               {}\n", id.read_look_ahead);
-	print!("Write cache:                   {}\n", id.write_cache);
+	print!("SMART support is:              {}\n", ternary_feature_status(&id.smart));
+	print!("AAM feature is:                {}\n", ternary_feature_status(&id.aam));
+	print!("APM feature is:                {}\n", ternary_feature_status(&id.apm));
+	print!("Rd look-ahead is:              {}\n", ternary_feature_status(&id.read_look_ahead));
+	print!("Write cache is:                {}\n", ternary_feature_status(&id.write_cache));
+	print!(
+		"DSN feature is:                {}\n",
+		if id.dsn_available {
+			if id.dsn_enabled { "Enabled" } else { "Disabled" }
+		} else {
+			"Unavailable"
+		}
+	);
+	print!("ATA Security is:               {}\n", ata_security_status(id.security_state, id.security_master_pw_id));
+	print!(
+		"Wt Cache Reorder:              {}\n",
+		if id.sct_feature_control_supported {
+			"Unknown (SCT Feature Control not implemented)"
+		} else {
+			"Unavailable"
+		}
+	);
 	print!("Power management:              {}\n", bool_to_sup(id.power_mgmt_supported));
 	print!("General purpose logging:       {}\n", bool_to_sup(id.gp_logging_supported));
 	print!("Trusted computing:             {}\n", bool_to_sup(id.trusted_computing_supported));
-	print!("ATA security:                  {}\n", id.security);
 
 	print!("\n");
 
-	print!("S.M.A.R.T.:    {}\n", id.smart);
 	print!("Error logging: {}\n", bool_to_sup(id.smart_error_logging_supported));
 	print!("Self-test:     {}\n", bool_to_sup(id.smart_self_test_supported));
 
