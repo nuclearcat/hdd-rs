@@ -470,6 +470,11 @@ fn print_human_scsi_error_counters(counters: &Vec<(&str, HashMap<ErrorCounter, u
 // TODO other formats
 // TODO prometheus: device id labels, just like in attrs_ata
 fn attrs_scsi(path: &str, dev: &DeviceArgument, format: Format) {
+	if path.starts_with("/dev/nvme") || path.starts_with("nvme") {
+		eprint!("NVMe devices are not supported by this tool; use nvme-cli instead.\n");
+		return;
+	}
+
 	let dev = match dev {
 		#[cfg(not(target_os = "linux"))]
 		DeviceArgument::ATA(_, _) => unreachable!(),
