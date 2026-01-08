@@ -172,8 +172,8 @@ fn make_ternary(data: &Vec<u16>, word_sup: usize, bit_sup: usize, word_enabled: 
 	}
 }
 
-pub fn parse_id(data: &Vec<u8>) -> Id {
-	// TODO return None if data.len() < 512
+pub fn parse_id(data: &Vec<u8>) -> Option<Id> {
+	if data.len() < 512 { return None; }
 	let data = crate::utils::bytes_to_be_words(data);
 	/*
 	TODO ATA8-ACS T13/1699-D Revision 3f field description
@@ -317,7 +317,7 @@ pub fn parse_id(data: &Vec<u8>) -> Id {
 		512
 	};
 
-	Id {
+	Some(Id {
 		is_ata: !is_set(data[0], 15),
 		incomplete: is_set(data[0], 2),
 
@@ -493,5 +493,5 @@ pub fn parse_id(data: &Vec<u8>) -> Id {
 
 		smart_error_logging_supported: is_set(data[84], 0), // XXX mirrored; see commands_supported
 		smart_self_test_supported: is_set(data[84], 1), // XXX mirrored; see commands_supported
-	}
+	})
 }

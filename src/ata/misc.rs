@@ -59,6 +59,9 @@ quick_error! {
 			from()
 			display("{}", err)
 		}
+		ShortData(context: &'static str, expected: usize, got: usize) {
+			display("Short {} data: expected {} bytes, got {}", context, expected, got)
+		}
 	}
 }
 
@@ -81,7 +84,8 @@ pub trait Misc {
 			device: 0,
 		})?;
 
-		Ok(id::parse_id(&data))
+		id::parse_id(&data)
+			.ok_or(Error::ShortData("IDENTIFY DEVICE", 512, data.len()))
 	}
 
 	/// Issues SMART RETURN STATUS command, returns `Some(false)` if device can no longer be considered reliable.
@@ -123,7 +127,8 @@ pub trait Misc {
 			device: 0,
 		})?;
 
-		Ok(attr::parse_smart_values(&data, &thresh, &meta))
+		attr::parse_smart_values(&data, &thresh, &meta)
+			.ok_or(Error::ShortData("SMART values", 512, data.len()))
 	}
 }
 
