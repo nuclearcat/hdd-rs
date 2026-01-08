@@ -21,7 +21,7 @@ if pages.contains(0x03) {
 ```
 */
 
-use scsi;
+use crate::scsi;
 use scsi::{SCSIDevice, SCSICommon};
 use scsi::data::log_page;
 

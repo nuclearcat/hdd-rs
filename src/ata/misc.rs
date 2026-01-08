@@ -30,16 +30,16 @@ match id.smart {
 ```
 */
 
-use Direction;
+use crate::Direction;
 
 #[cfg(not(target_os = "linux"))]
 use Device;
 
-use ata::{ATADevice, RegistersRead, RegistersWrite, Command, SMARTFeature};
-use scsi::{self, SCSIDevice};
+use crate::ata::{ATADevice, RegistersRead, RegistersWrite, Command, SMARTFeature};
+use crate::scsi::{self, SCSIDevice};
 
-use ata::data::{id, health, attr};
-use drivedb;
+use crate::ata::data::{id, health, attr};
+use crate::drivedb;
 
 use std::io;
 

@@ -1,4 +1,4 @@
-use ata;
+use crate::ata;
 
 // SFF-8035i rev 2, 2.8 S.M.A.R.T. RETURN STATUS
 pub fn parse_smart_status<'a>(reg: &'a ata::RegistersRead) -> Option<bool> {

@@ -9,8 +9,8 @@ All things ATA.
 pub mod data;
 pub mod misc;
 
-use Direction;
-use scsi::{self, SCSIDevice, SCSICommon};
+use crate::Direction;
+use crate::scsi::{self, SCSIDevice, SCSICommon};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Command {
@@ -67,7 +67,7 @@ impl<T> ATADevice<T> {
 // which is an implementation detail that would leak everywhere as part of a public interface
 // besides, we really only need this method for just, like, two types: `ATADevice<Device>` and `ATADevice<SCSIDevice>`
 macro_rules! ata_do { ($Err:ty) => {
-	pub fn ata_do(&self, dir: Direction, regs: &::ata::RegistersWrite) -> Result<(::ata::RegistersRead, Vec<u8>), $Err> {
+	pub fn ata_do(&self, dir: Direction, regs: &crate::ata::RegistersWrite) -> Result<(crate::ata::RegistersRead, Vec<u8>), $Err> {
 		info!("issuing cmd: dir={:?} regs={:?}", dir, regs);
 
 		// this one is implemented in `mod {linux,freebsd}`, and here for `T: SCSIDevice`
@@ -76,7 +76,7 @@ macro_rules! ata_do { ($Err:ty) => {
 			Ok((regs, data)) => {
 				debug!("cmd reply: regs={:?}", regs);
 				// XXX does it make sense to use hexdump_16() instead of hexdump_8() if cmd is not IDENTIFY DEVICE?
-				debug!("cmd data: {}", ::utils::hexdump_16be(&::utils::bytes_to_be_words(data)));
+				debug!("cmd data: {}", crate::utils::hexdump_16be(&crate::utils::bytes_to_be_words(data)));
 			},
 			err => {
 				debug!("cmd error: {:?}", err);

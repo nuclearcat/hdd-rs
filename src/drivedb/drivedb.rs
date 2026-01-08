@@ -4,7 +4,7 @@ use regex;
 use regex::bytes::{RegexSet, RegexSetBuilder};
 use std::collections::HashSet;
 
-use ata::data::id;
+use crate::ata::data::id;
 
 /**
 Drive database that hosts its entries and allows to search for relevant data.
@@ -111,7 +111,7 @@ impl DriveDB {
 
 fn filter_presets(id: &id::Id, preset: Vec<Attribute>) -> Vec<Attribute> {
 	let drivetype = {
-		use self::id::RPM::*;
+		use crate::ata::data::id::RPM::*;
 		use super::vendor_attribute::Type::*;
 		match id.rpm {
 			RPM(_) => Some(HDD),

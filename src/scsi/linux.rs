@@ -9,8 +9,8 @@ use libc::c_ulong;
 use std::os::unix::io::AsRawFd;
 use std::io;
 
-use Direction;
-use scsi::SCSIDevice;
+use crate::Direction;
+use crate::scsi::SCSIDevice;
 
 use std::cmp::max;
 

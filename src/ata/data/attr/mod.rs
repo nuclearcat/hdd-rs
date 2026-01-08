@@ -1,7 +1,7 @@
 pub mod raw;
 
 use std::collections::HashMap;
-use drivedb;
+use crate::drivedb;
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serializable", derive(Serialize))]

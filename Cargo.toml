@@ -3,7 +3,7 @@ name = "hdd"
 description = "hdd: instruments for querying ATA and SCSI disks"
 version = "0.10.0"
 authors = ["vthriller <unixway.drive+rs@gmail.com>"]
-edition = "2015"
+edition = "2024"
 repository = "https://github.com/vthriller/hdd-rs"
 license = "MPL-2.0"
 readme = "README.md"
@@ -20,13 +20,13 @@ quick-error = "2.0.1"
 log = "0.4"
 
 # feature: serializable
-serde = { version = "0.9", optional = true }
-serde_derive = { version = "0.9", optional = true }
+serde = { version = "1.0.228", optional = true }
+serde_derive = { version = "1.0.228", optional = true }
 
 # feature: bin
 clap = { version = ">=0.6.6", optional = true }
-serde_json = { version = "0.9", optional = true }
-separator = { version = "0.3.1", optional = true }
+serde_json = { version = "1.0.149", optional = true }
+separator = { version = "0.4.1", optional = true }
 number_prefix = { version = "0.4.0", optional = true }
 prettytable-rs = { version = "^0.10", optional = true }
 env_logger = { version = "0.11.8", optional = true }

@@ -17,14 +17,14 @@ mod linux;
 mod freebsd;
 
 use std::io;
-use ata;
+use crate::ata;
 use byteorder::{ReadBytesExt, BigEndian};
 use self::data::sense;
 
-use Direction;
-use Device;
+use crate::Direction;
+use crate::Device;
 
-use utils::hexdump_8;
+use crate::utils::hexdump_8;
 
 quick_error! {
 	#[derive(Debug)]
