@@ -50,8 +50,6 @@ quick_error! {
 			from()
 			//from(ATAError::IO(err): ATAError) -> (err)
 			display("IO error: {}", err)
-			description(err.description())
-			cause(err)
 		}
 		SCSI(err: scsi::ATAError) {
 			from()

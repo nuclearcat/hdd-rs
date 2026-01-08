@@ -32,14 +32,11 @@ quick_error! {
 		IO(err: io::Error) {
 			from()
 			display("IO error: {}", err)
-			description(err.description())
-			cause(err)
 		}
 		// XXX make sure only non-deferred senses are used here
 		// XXX it makes no sense (sorry!) to put informational senses here (i.e. sense::SenseKey::{Ok, Recovered, Completed})
 		Sense(key: sense::key::SenseKey, asc: u8, ascq: u8) { // XXX do we need additional sense data? descriptors? flags? probably not
 			// FIXME no from() here due to sense::Sense lifetimes; for now use Error::from_sense() instead
-			description("SCSI error")
 			display("SCSI error: {:?} ({})",
 				key,
 				sense::key::decode_asc(*asc, *ascq)

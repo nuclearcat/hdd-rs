@@ -13,13 +13,10 @@ quick_error! {
 		IO(err: io::Error) {
 			from()
 			display("IO error: {}", err)
-			description(err.description())
-			cause(err)
 		}
 		Parse {
 			// TODO? Parse(nom::verbose_errors::Err) if dependencies.nom.features = ["verbose-errors"]
 			display("Unable to parse the drivedb")
-			description("malformed database")
 		}
 	}
 }
