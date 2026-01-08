@@ -1,13 +1,21 @@
 use std::fmt;
 
-// TODO make sure characters are in the range of 0x20 to (and including) 0x7e
-// (this is in the standard, and also to make std::String safe again)
+// ATA strings are ASCII in range 0x20..=0x7e; replace anything else with space.
 fn read_string(arr: &Vec<u16>, start: usize, fin: usize) -> String {
 	let mut output = String::with_capacity((fin - start) * 2);
+	let mut push_byte = |out: &mut String, b: u8| {
+		if (0x20..=0x7e).contains(&b) {
+			out.push(b as char);
+		} else {
+			out.push(' ');
+		}
+	};
 
 	for i in start..(fin+1) {
-		output.push((arr[i] >> 8) as u8 as char);
-		output.push((arr[i] & 0xff) as u8 as char);
+		let hi = (arr[i] >> 8) as u8;
+		let lo = (arr[i] & 0xff) as u8;
+		push_byte(&mut output, hi);
+		push_byte(&mut output, lo);
 	}
 
 	String::from(output.trim())

@@ -32,9 +32,14 @@ pub struct SmartAttribute {
 }
 
 pub fn parse_smart_values(data: &Vec<u8>, raw_thresh: &Vec<u8>, meta: &Option<drivedb::DriveMeta>) -> Option<Vec<SmartAttribute>> {
-	// TODO cover bytes 0..1 362..511 of data
 	// XXX what if some drive reports the same attribute multiple times?
 	if data.len() < 512 { return None; }
+
+	let revision = u16::from_le_bytes([data[0], data[1]]);
+	let checksum = data.iter().fold(0u8, |acc, &b| acc.wrapping_add(b));
+	if checksum != 0 {
+		warn!("SMART data checksum mismatch (rev={}, sum=0x{:02x})", revision, checksum);
+	}
 
 	let mut threshs = HashMap::<u8, u8>::new();
 	for i in 0..30 {
