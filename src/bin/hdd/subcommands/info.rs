@@ -74,20 +74,24 @@ fn ata_security_status(state: u16, master_password_id: u16) -> String {
 	out
 }
 
+fn print_kv(label: &str, value: impl ::std::fmt::Display) {
+	print!("{:<28}{}\n", label, value);
+}
+
 fn print_ata_id(id: &id::Id, meta: &Option<drivedb::DriveMeta>) {
 	if id.incomplete { print!("WARNING: device reports information it provides is incomplete\n\n"); }
 
 	// XXX id.is_ata is deemed redundant and is skipped
 	// XXX we're skipping id.commands_supported for now as it is hardly of any interest to users
 
-	print!("Model:    {}\n", id.model);
+	print_kv("Model:", &id.model);
 	match id.rpm {
 		id::RPM::Unknown => (),
-		id::RPM::NonRotating => print!("RPM:      N/A (SSD or other non-rotating media)\n"),
-		id::RPM::RPM(i) => print!("RPM:      {}\n", i),
+		id::RPM::NonRotating => print_kv("RPM:", "N/A (SSD or other non-rotating media)"),
+		id::RPM::RPM(i) => print_kv("RPM:", format!("{}", i)),
 	};
-	print!("Firmware: {}\n", id.firmware);
-	print!("Serial:   {}\n", id.serial);
+	print_kv("Firmware:", &id.firmware);
+	print_kv("Serial:", &id.serial);
 	// TODO: id.wwn_supported is cool, but actual WWN ID is better
 
 	if let Some(meta) = meta {
@@ -103,23 +107,29 @@ fn print_ata_id(id: &id::Id, meta: &Option<drivedb::DriveMeta>) {
 
 	print!("\n");
 
-	print!("Capacity: {} bytes\n", id.capacity.separated_string());
-	print!("          ({}, {})\n",
+	print_kv("Capacity:", format!("{} bytes", id.capacity.separated_string()));
+	print_kv(
+		"",
 		match NumberPrefix::decimal(id.capacity as f64) {
 			NumberPrefix::Prefixed(p, x) => format!("{:.1} {}B", x, p),
 			NumberPrefix::Standalone(x)  => format!("{} bytes", x),
 		},
+	);
+	print_kv(
+		"",
 		match NumberPrefix::binary(id.capacity as f64) {
 			NumberPrefix::Prefixed(p, x) => format!("{:.1} {}B", x, p),
 			NumberPrefix::Standalone(x)  => format!("{} bytes", x),
 		},
 	);
-	print!("Sector size (logical):  {}\n", id.sector_size_log);
-	print!("Sector size (physical): {}\n", id.sector_size_phy);
+	print_kv(
+		"Sector size (logical/physical):",
+		format!("{}/{}", id.sector_size_log, id.sector_size_phy),
+	);
 
 	print!("\n");
 
-	print!("ATA version:\n{}\n", id.ata_version.unwrap_or("unknown"));
+	print_kv("ATA version:", id.ata_version.unwrap_or("unknown"));
 	if id.sata_version.is_some() || id.sata_speed_max.is_some() || id.sata_speed_current.is_some() {
 		let mut details = id.sata_version.unwrap_or("SATA").to_string();
 		if let Some(max) = id.sata_speed_max {
@@ -128,10 +138,10 @@ fn print_ata_id(id: &id::Id, meta: &Option<drivedb::DriveMeta>) {
 		if let Some(current) = id.sata_speed_current {
 			details.push_str(&format!(" (current: {})", current));
 		}
-		print!("SATA Version:\n{}\n", details);
+		print_kv("SATA Version:", details);
 	}
-	print!(
-		"TRIM Command:     {}\n",
+	print_kv(
+		"TRIM Command:",
 		if !id.trim_supported {
 			"not supported".to_string()
 		} else {
@@ -143,44 +153,44 @@ fn print_ata_id(id: &id::Id, meta: &Option<drivedb::DriveMeta>) {
 				details.push("zeroed");
 			}
 			details.join(", ")
-		}
+		},
 	);
 
 	print!("\n");
 
 	// The following guide, when printed, is exactly 80 characters
 	// ... "..............................................................supported disabled\n"
-	print!("Host protected area:           {}\n", id.hpa);
-	print!("SMART support is:              {}\n", ternary_feature_status(&id.smart));
-	print!("AAM feature is:                {}\n", ternary_feature_status(&id.aam));
-	print!("APM feature is:                {}\n", ternary_feature_status(&id.apm));
-	print!("Rd look-ahead is:              {}\n", ternary_feature_status(&id.read_look_ahead));
-	print!("Write cache is:                {}\n", ternary_feature_status(&id.write_cache));
-	print!(
-		"DSN feature is:                {}\n",
+	print_kv("Host protected area:", format!("{}", id.hpa));
+	print_kv("SMART support is:", ternary_feature_status(&id.smart));
+	print_kv("AAM feature is:", ternary_feature_status(&id.aam));
+	print_kv("APM feature is:", ternary_feature_status(&id.apm));
+	print_kv("Rd look-ahead is:", ternary_feature_status(&id.read_look_ahead));
+	print_kv("Write cache is:", ternary_feature_status(&id.write_cache));
+	print_kv(
+		"DSN feature is:",
 		if id.dsn_available {
 			if id.dsn_enabled { "Enabled" } else { "Disabled" }
 		} else {
 			"Unavailable"
-		}
+		},
 	);
-	print!("ATA Security is:               {}\n", ata_security_status(id.security_state, id.security_master_pw_id));
-	print!(
-		"Wt Cache Reorder:              {}\n",
+	print_kv("ATA Security is:", ata_security_status(id.security_state, id.security_master_pw_id));
+	print_kv(
+		"Wt Cache Reorder:",
 		if id.sct_feature_control_supported {
 			"Unknown (SCT Feature Control not implemented)"
 		} else {
 			"Unavailable"
-		}
+		},
 	);
-	print!("Power management:              {}\n", bool_to_sup(id.power_mgmt_supported));
-	print!("General purpose logging:       {}\n", bool_to_sup(id.gp_logging_supported));
-	print!("Trusted computing:             {}\n", bool_to_sup(id.trusted_computing_supported));
+	print_kv("Power management:", bool_to_sup(id.power_mgmt_supported));
+	print_kv("General purpose logging:", bool_to_sup(id.gp_logging_supported));
+	print_kv("Trusted computing:", bool_to_sup(id.trusted_computing_supported));
 
 	print!("\n");
 
-	print!("Error logging: {}\n", bool_to_sup(id.smart_error_logging_supported));
-	print!("Self-test:     {}\n", bool_to_sup(id.smart_self_test_supported));
+	print_kv("Error logging:", bool_to_sup(id.smart_error_logging_supported));
+	print_kv("Self-test:", bool_to_sup(id.smart_self_test_supported));
 
 	print!("\n");
 }
