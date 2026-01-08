@@ -150,7 +150,6 @@ pub struct SCSIPages<'a, T: SCSICommon + 'a> {
 	supported_pages: Vec<u8>,
 }
 
-// TODO non-empty autosense errors
 impl<'a> SCSIPages<'a, SCSIDevice> {
 	// TODO document error type
 	pub fn new(device: &'a SCSIDevice) -> Result<Self, Error> {

@@ -60,6 +60,27 @@ impl Error {
 	}
 }
 
+fn check_sense(sense: &[u8]) -> Result<(), Error> {
+	if sense.is_empty() {
+		return Ok(());
+	}
+
+	match sense::parse(sense) {
+		Some((true, sense)) => match sense.kcq() {
+			Some((key, asc, ascq)) => {
+				use sense::key::SenseKey::*;
+				match sense::key::SenseKey::from(key) {
+					Ok | Recovered | Completed => Ok(()),
+					key => Err(Error::Sense(key, asc, ascq)),
+				}
+			},
+			None => Err(Error::Nonsense),
+		},
+		Some((false, _)) => Ok(()), // deferred sense; ignore for now
+		None => Err(Error::Nonsense),
+	}
+}
+
 // FIXME naming: this isn't about ATA-level error, this is error related to ATA PASS-THROUGH command
 quick_error! {
 	#[derive(Debug)]
@@ -146,7 +167,9 @@ pub trait SCSICommon: Sized {
 			0, // control (XXX what's that?!)
 		];
 
-		Ok(self.do_cmd(&cmd, Direction::From, 32, ALLOC)?)
+		let (sense, data) = self.do_cmd(&cmd, Direction::From, 32, ALLOC)?;
+		check_sense(&sense)?;
+		Ok((sense, data))
 	}
 
 	/// returns tuple of (sense, logical block address, block length in bytes)
@@ -174,6 +197,7 @@ pub trait SCSICommon: Sized {
 
 		let (sense, data) = self.do_cmd(&cmd, Direction::From, 32, 8)?;
 
+		check_sense(&sense)?;
 		Ok((
 			sense,
 			(&data[0..4]).read_u32::<BigEndian>().unwrap(),
@@ -264,7 +288,9 @@ pub trait SCSICommon: Sized {
 			0, // control (XXX what's that?!)
 		];
 
-		Ok(self.do_cmd(&cmd, Direction::From, 32, ALLOC)?)
+		let (sense, data) = self.do_cmd(&cmd, Direction::From, 32, ALLOC)?;
+		check_sense(&sense)?;
+		Ok((sense, data))
 	}
 
 	fn ata_pass_through_16(&self, dir: Direction, regs: &ata::RegistersWrite) -> Result<(ata::RegistersRead, Vec<u8>), ATAError> {
