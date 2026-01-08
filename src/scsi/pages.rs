@@ -5,19 +5,21 @@ The reason why this is implemented as a wrapper type instead of a trait is becau
 
 ## Example
 
-```
+```no_run
 use hdd::Device;
 use hdd::scsi::SCSIDevice;
-use hdd::scsi::pages::{Pages, page_name};
+use hdd::scsi::pages::{SCSIPages, page_name};
 
-...
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+let dev = SCSIDevice::new(Device::open("/dev/da0")?);
+let mut pages = SCSIPages::new(&dev)?;
 
-let pages = dev.supported_pages().unwrap();
-
-if pages.contains(0x03) {
+if pages.supported_pages().contains(&0x03) {
 	println!("{}:", page_name(0x03));
-	println!("{:#?}\n", dev.read_error_counters()),
+	println!("{:#?}\n", pages.read_error_counters()?);
 }
+# Ok(())
+# }
 ```
 */
 

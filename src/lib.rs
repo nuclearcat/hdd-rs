@@ -3,12 +3,17 @@ This crate allows you to send various commands to storage devices, and to interp
 
 ## Example
 
-```
+```no_run
 use hdd::Device;
 use hdd::scsi::{SCSIDevice, SCSICommon};
 
-let dev = Device::open("/dev/da0").unwrap();
-let (sense, data) = dev.scsi_inquiry(vpd, page).unwrap();
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+let dev = SCSIDevice::new(Device::open("/dev/da0")?);
+let vpd = false;
+let page: u8 = 0;
+let (_sense, _data) = dev.scsi_inquiry(vpd, page)?;
+# Ok(())
+# }
 ```
 
 TODO show how to send hand-crafted commands, or how to use porcelain interfaces.

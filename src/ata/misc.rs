@@ -3,13 +3,15 @@ Functions implementing typical ATA commands.
 
 ## Example
 
-```
+```no_run
 use hdd::Device;
 use hdd::ata::ATADevice;
 use hdd::ata::misc::Misc;
 use hdd::ata::data::id::Ternary;
+use hdd::scsi::SCSIDevice;
 
-...
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+let dev = ATADevice::new(SCSIDevice::new(Device::open("/dev/da0")?));
 
 // it is a good idea to get feature status with device id info before proceeding further
 // the good thing is, ATA IDENTIFY DEVICE covers a lot of features, so we only need to call this once
@@ -27,6 +29,8 @@ match id.smart {
 		});
 	},
 }
+# Ok(())
+# }
 ```
 */
 

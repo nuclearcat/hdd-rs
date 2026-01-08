@@ -5,18 +5,24 @@ For more, see SPC-4, 7.3 Log parameters.
 
 ## Example
 
-```
+```no_run
+use hdd::Device;
+use hdd::scsi::{SCSIDevice, SCSICommon};
 use hdd::scsi::data::log_page;
 
-let (_sense, data) = dev.log_sense(...)?;
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+let dev = SCSIDevice::new(Device::open("/dev/da0")?);
+let (_sense, data) = dev.log_sense(false, false, false, false, 0x02, 0, 0)?;
 
 let page = log_page::parse(&data).unwrap();
 println!("{:#?}", page);
 
-let params = page.parse_params();
+let params = page.parse_params().unwrap_or_default();
 for param in params {
 	println!("{:#?}", param);
 }
+# Ok(())
+# }
 ```
 */
 
