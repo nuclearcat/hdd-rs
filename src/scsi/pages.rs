@@ -115,7 +115,7 @@ pub fn page_name(page: u8) -> &'static str {
 		0x0e => "Start-Stop Cycle Counter",
 		0x10 => "Self-Test results",
 		0x2f => "Informational Exceptions",
-		0x30...0x3e => "(Vendor-Specific)",
+		0x30..=0x3e => "(Vendor-Specific)",
 		0x3f => "(Reserved)",
 		// TODO Option<>?
 		_ => "?",
@@ -221,7 +221,7 @@ impl<'a> SCSIPages<'a, SCSIDevice> {
 				0x0004 => CRCProcessed,
 				0x0005 => BytesProcessed,
 				0x0006 => Uncorrected,
-				x @ 0x8000...0xffff => VendorSpecific(x),
+				x @ 0x8000..=0xffff => VendorSpecific(x),
 				x => Reserved(x),
 			};
 			let value = {
@@ -408,7 +408,7 @@ impl<'a> SCSIPages<'a, SCSIDevice> {
 					1 => Aborted { explicitly: true },
 					2 => Aborted { explicitly: false },
 					3 => UnknownError,
-					4...7 => Failed,
+					4..=7 => Failed,
 					15 => InProgress,
 					x => Reserved(x),
 				},

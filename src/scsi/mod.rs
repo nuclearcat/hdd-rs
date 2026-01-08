@@ -111,6 +111,7 @@ impl SCSIDevice {
 
 // TODO pub? see read_defect_data_*()
 #[derive(Debug)]
+#[allow(dead_code)]
 enum AddrDescriptorFormat {
 	ShortBlock = 0b000,
 	LongBlock = 0b011,
@@ -137,18 +138,18 @@ pub trait SCSICommon: Sized {
 		info!("issuing INQUIRY: code={:?} vital={:?}", code, vital);
 
 		// TODO as u16 argument, not const
-		const alloc: usize = 4096;
+		const ALLOC: usize = 4096;
 
 		let cmd: [u8; 6] = [
 			0x12, // opcode: INQUIRY
 			if vital {1} else {0}, // reserved << 2 + cmddt (obsolete) << 1 + enable vital product data << 0
 			code,
-			(alloc >> 8) as u8,
-			(alloc & 0xff) as u8,
+			(ALLOC >> 8) as u8,
+			(ALLOC & 0xff) as u8,
 			0, // control (XXX what's that?!)
 		];
 
-		Ok(self.do_cmd(&cmd, Direction::From, 32, alloc)?)
+		Ok(self.do_cmd(&cmd, Direction::From, 32, ALLOC)?)
 	}
 
 	/// returns tuple of (sense, logical block address, block length in bytes)
@@ -242,7 +243,7 @@ pub trait SCSICommon: Sized {
 		);
 
 		// TODO as u16 argument, not const
-		const alloc: usize = 4096;
+		const ALLOC: usize = 4096;
 
 		// Page Control field
 		let pc = match (default, threshold) {
@@ -261,12 +262,12 @@ pub trait SCSICommon: Sized {
 			0, // reserved
 			(param_ptr >> 8) as u8,
 			(param_ptr & 0xff) as u8,
-			(alloc >> 8) as u8,
-			(alloc & 0xff) as u8,
+			(ALLOC >> 8) as u8,
+			(ALLOC & 0xff) as u8,
 			0, // control (XXX what's that?!)
 		];
 
-		Ok(self.do_cmd(&cmd, Direction::From, 32, alloc)?)
+		Ok(self.do_cmd(&cmd, Direction::From, 32, ALLOC)?)
 	}
 
 	fn ata_pass_through_16(&self, dir: Direction, regs: &ata::RegistersWrite) -> Result<(ata::RegistersRead, Vec<u8>), ATAError> {
@@ -418,7 +419,7 @@ where C: ::std::ops::Div<Output = C> + ::std::convert::From<u8> + ::std::fmt::Di
 					// XXX is it correct to just dismiss (WHATEVER) DEFECT LIST NOT FOUND if DefectList::Both is requested?
 				},
 				// unexpected sense
-				s => return Err(Error::from_sense(&sense)),
+				_ => return Err(Error::from_sense(&sense)),
 			}
 		}
 	}

@@ -16,7 +16,7 @@ pub struct DescriptorData<'a> {
 	pub descriptors: Vec<Descriptor<'a>>,
 }
 
-pub fn parse(data: &[u8]) -> Option<DescriptorData> {
+pub fn parse(data: &[u8]) -> Option<DescriptorData<'_>> {
 	if data.len() < 8 {
 		return None;
 	}

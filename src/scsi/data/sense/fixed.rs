@@ -36,7 +36,7 @@ fn copy_from_slice_4(x: &[u8]) -> [u8; 4] {
 	y
 }
 
-pub fn parse(data: &[u8]) -> Option<FixedData> {
+pub fn parse(data: &[u8]) -> Option<FixedData<'_>> {
 	if data.len() < 18 {
 		return None;
 	}

@@ -268,7 +268,7 @@ pub fn parse_id(data: &Vec<u8>) -> Id {
 
 		rpm: match data[217] {
 			// all values except 0x0000 are reserved (TODO warning?)
-			0x0000 | 0xffff | 0x0002...0x0400 => RPM::Unknown,
+			0x0000 | 0xffff | 0x0002..=0x0400 => RPM::Unknown,
 			0x0001 => RPM::NonRotating,
 			i => RPM::RPM(i),
 		},
@@ -277,7 +277,7 @@ pub fn parse_id(data: &Vec<u8>) -> Id {
 
 		// TODO word 80: major revision number compatibility bits (if not 0x0000 nor 0xffff)
 		ata_version: match data[81] {
-			0x0001 ... 0x000c => Some("(obsolete)"),
+			0x0001 ..= 0x000c => Some("(obsolete)"),
 
 			0x000d => Some("ATA/ATAPI-4 X3T13 1153D revision 6"),
 			0x000e => Some("ATA/ATAPI-4 T13 1153D revision 13"),

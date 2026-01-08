@@ -103,7 +103,7 @@ pub fn list_devices() -> Result<Vec<PathBuf>, io::Error> {
 		if let Ok(uevent) = File::open(path.join("uevent")) {
 			let mut is_disk = false;
 
-			let mut buf = BufReader::new(uevent);
+			let buf = BufReader::new(uevent);
 			for line in buf.lines() {
 				match &line {
 					Ok(s) if s.as_str() == "DEVTYPE=disk" => {

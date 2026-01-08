@@ -48,7 +48,7 @@ pub struct Descriptor<'a> {
 	pub id: Identifier<'a>,
 }
 
-pub fn parse(data: &[u8]) -> Vec<Descriptor> {
+pub fn parse(data: &[u8]) -> Vec<Descriptor<'_>> {
 	let mut descriptors = vec![];
 
 	let mut i = 0;

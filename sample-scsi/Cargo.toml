@@ -2,6 +2,7 @@
 name = "sample-scsi"
 version = "0.10.0"
 authors = ["vthriller <unixway.drive+rs@gmail.com>"]
+edition = "2015"
 
 [dependencies]
 clap = ">=0.6.6"

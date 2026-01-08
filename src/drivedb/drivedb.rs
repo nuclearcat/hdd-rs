@@ -78,7 +78,7 @@ impl DriveDB {
 	Return value is a merge between the default entry and the first match; if multiple entries match the `id`, the first one is used (this is consistent with smartmontools' `lookup_drive` function).
 	`extra_attributes` are also appended to the list of presets afterwards.
 	*/
-	pub fn render_meta(&self, id: &id::Id, extra_attributes: &Vec<Attribute>) -> DriveMeta {
+	pub fn render_meta(&self, id: &id::Id, extra_attributes: &Vec<Attribute>) -> DriveMeta<'_> {
 		let mut m = DriveMeta {
 			family: None,
 			warning: None,
