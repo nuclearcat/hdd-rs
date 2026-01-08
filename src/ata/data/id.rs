@@ -440,8 +440,9 @@ pub fn parse_id(data: &Vec<u8>) -> Id {
 		sata_speed_current: sata_speed_from_word(data[77])
 			.or_else(|| sata_speed_from_word(data[78])),
 		trim_supported: data[169] & 0b0000_0000_0000_0001 != 0,
-		trim_deterministic: data[169] & 0b0000_0000_0000_0010 != 0,
-		trim_zeroed: data[169] & 0b0000_0000_0000_0100 != 0,
+		// DRAT/RZAT flags live in word 69, not word 169.
+		trim_deterministic: data[69] & (1 << 14) != 0,
+		trim_zeroed: data[69] & (1 << 5) != 0,
 
 		commands_supported: IdCommands {
 			// XXX these, according to ATA8-ACS rev 62, should be mirrored in 'feature status' words

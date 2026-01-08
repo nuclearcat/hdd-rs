@@ -29,9 +29,25 @@ fn is_set(x: u8, bit: usize) -> bool {
 	x & (1<<bit) != 0
 }
 
-pub fn parse_inquiry(data: &Vec<u8>) -> Inquiry {
+fn read_ascii_field(data: &[u8], start: usize, end: usize) -> String {
+	let end = end.min(data.len());
+	if start >= end {
+		return String::new();
+	}
+	let s = String::from_utf8_lossy(&data[start..end]);
+	s.trim_end_matches(|c| c == '\0' || c == ' ').to_string()
+}
+
+pub fn parse_inquiry(data: &[u8]) -> Inquiry {
+	let b0 = *data.get(0).unwrap_or(&0);
+	let b1 = *data.get(1).unwrap_or(&0);
+	let b3 = *data.get(3).unwrap_or(&0);
+	let b5 = *data.get(5).unwrap_or(&0);
+	let b6 = *data.get(6).unwrap_or(&0);
+	let b7 = *data.get(7).unwrap_or(&0);
+
 	Inquiry {
-		connected: match (data[0] & 0b1110_0000) >> 5 { // Peripheral Qualifier
+		connected: match (b0 & 0b1110_0000) >> 5 { // Peripheral Qualifier
 			0b000 => Some(true),
 			0b001 => Some(false),
 			// 010 is reserved
@@ -39,7 +55,7 @@ pub fn parse_inquiry(data: &Vec<u8>) -> Inquiry {
 			// 100..111 is vendor specific
 			_ => None,
 		},
-		device_type: match data[0] & 0b0001_1111 {
+		device_type: match b0 & 0b0001_1111 {
 			0x00 => "SBC-2", // Direct access block device (e.g., magnetic disk)
 			0x01 => "SSC-2", // Sequential-access device (e.g., magnetic tape)
 			0x02 => "SSC", // Printer device
@@ -64,7 +80,7 @@ pub fn parse_inquiry(data: &Vec<u8>) -> Inquiry {
 			_ => unreachable!(),
 		}.to_string(),
 
-		removable: is_set(data[1], 7),
+		removable: is_set(b1, 7),
 
 		/* TODO data[2] → Version:
 		0x03 SPC
@@ -72,22 +88,22 @@ pub fn parse_inquiry(data: &Vec<u8>) -> Inquiry {
 		the rest is ???
 		*/
 
-		naca_bit: is_set(data[3], 5),
-		hier_addressing: is_set(data[3], 4),
+		naca_bit: is_set(b3, 5),
+		hier_addressing: is_set(b3, 4),
 
 		// ResponseFormat: data[3] & 0b1111, // TODO
 		// data[4]: additional length
 
-		scc: is_set(data[5], 7), // storage array controller component support
-		acc: is_set(data[5], 6), // device contains an access controls coordinator
+		scc: is_set(b5, 7), // storage array controller component support
+		acc: is_set(b5, 6), // device contains an access controls coordinator
 		// TODO? (data[5] & 0b0011_0000) Target Port Group Support
-		tpc: is_set(data[5], 3), // support for 3rd-party copy commands
-		protection: is_set(data[5], 0),
+		tpc: is_set(b5, 3), // support for 3rd-party copy commands
+		protection: is_set(b5, 0),
 
-		enclosure_services: is_set(data[6], 6),
-		multiport: is_set(data[6], 4),
-		media_changer: is_set(data[6], 3),
-		linked_cmds: is_set(data[7], 3),
+		enclosure_services: is_set(b6, 6),
+		multiport: is_set(b6, 4),
+		media_changer: is_set(b6, 3),
+		linked_cmds: is_set(b7, 3),
 
 		/* TODO? match (bque: is_set(data[6], 7), cmdque: is_set(data[7], 1)):
 		00 obsolete
@@ -97,10 +113,10 @@ pub fn parse_inquiry(data: &Vec<u8>) -> Inquiry {
 		*/
 
 		// XXX? > ASCII data fields … may be terminated with one or more ASCII null (00h) characters.
-		vendor_id: String::from_utf8(data[8..16].to_vec()).unwrap().trim().to_string(),
-		product_id: String::from_utf8(data[16..32].to_vec()).unwrap().trim().to_string(),
-		product_rev: String::from_utf8(data[32..36].to_vec()).unwrap().trim().to_string(),
-		drive_serial: String::from_utf8(data[36..44].to_vec()).unwrap().trim().to_string(),
+		vendor_id: read_ascii_field(data, 8, 16),
+		product_id: read_ascii_field(data, 16, 32),
+		product_rev: read_ascii_field(data, 32, 36),
+		drive_serial: read_ascii_field(data, 36, 44),
 
 		// TODO TODO TODO TODO TODO
 	}
