@@ -276,7 +276,8 @@ pub fn parse_id(data: &Vec<u8>) -> Id {
 		trusted_computing_supported: is_set(data[48], 0),
 
 		// TODO word 80: major revision number compatibility bits (if not 0x0000 nor 0xffff)
-		ata_version: match data[81] {
+		ata_version: {
+			let ata_version = match data[81] {
 			0x0001 ..= 0x000c => Some("(obsolete)"),
 
 			0x000d => Some("ATA/ATAPI-4 X3T13 1153D revision 6"),
@@ -331,6 +332,15 @@ pub fn parse_id(data: &Vec<u8>) -> Id {
 			0x011b => Some("ACS-3 revision 4"),
 			0x0000 | 0xffff => None, // revision is not reported
 			_ => None, // reserved values
+		};
+			if ata_version.is_none() {
+				debug!(
+					"ATA version is unknown (word80=0x{:04x}, word81=0x{:04x})",
+					data[80],
+					data[81],
+				);
+			}
+			ata_version
 		},
 
 		commands_supported: IdCommands {
