@@ -69,6 +69,16 @@ fn print_ata_id(id: &id::Id, meta: &Option<drivedb::DriveMeta>) {
 	print!("\n");
 
 	print!("ATA version:\n{}\n", id.ata_version.unwrap_or("unknown"));
+	if id.sata_version.is_some() || id.sata_speed_max.is_some() || id.sata_speed_current.is_some() {
+		let mut details = id.sata_version.unwrap_or("SATA").to_string();
+		if let Some(max) = id.sata_speed_max {
+			details.push_str(&format!(", {}", max));
+		}
+		if let Some(current) = id.sata_speed_current {
+			details.push_str(&format!(" (current: {})", current));
+		}
+		print!("SATA Version:\n{}\n", details);
+	}
 
 	print!("\n");
 

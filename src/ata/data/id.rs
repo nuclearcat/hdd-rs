@@ -36,6 +36,43 @@ fn major_version_from_word80(word80: u16) -> Option<&'static str> {
 	}
 }
 
+fn sata_version_from_word222(word222: u16) -> Option<&'static str> {
+	let word222 = word222 & 0x7ffe;
+	if word222 == 0 {
+		return None;
+	}
+
+	if word222 & (1 << 5) != 0 {
+		return Some("SATA 3.2");
+	}
+	if word222 & (1 << 4) != 0 {
+		return Some("SATA 3.1");
+	}
+	if word222 & (1 << 3) != 0 {
+		return Some("SATA 3.0");
+	}
+	if word222 & (1 << 2) != 0 {
+		return Some("SATA 2.0");
+	}
+	if word222 & (1 << 1) != 0 {
+		return Some("SATA 1.0");
+	}
+	None
+}
+
+fn sata_speed_from_word(word: u16) -> Option<&'static str> {
+	if word & (1 << 3) != 0 {
+		return Some("6.0 Gb/s");
+	}
+	if word & (1 << 2) != 0 {
+		return Some("3.0 Gb/s");
+	}
+	if word & (1 << 1) != 0 {
+		return Some("1.5 Gb/s");
+	}
+	None
+}
+
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 #[cfg_attr(feature = "serializable", derive(Serialize))]
 pub enum Ternary {
@@ -94,6 +131,9 @@ pub struct Id {
 	pub trusted_computing_supported: bool,
 
 	pub ata_version: Option<&'static str>,
+	pub sata_version: Option<&'static str>,
+	pub sata_speed_max: Option<&'static str>,
+	pub sata_speed_current: Option<&'static str>,
 
 	pub commands_supported: IdCommands,
 
@@ -385,6 +425,17 @@ pub fn parse_id(data: &Vec<u8>) -> Id {
 				}
 			}
 		},
+		sata_version: {
+			let word222 = data[222];
+			if word222 == 0x0000 || word222 == 0xffff {
+				None
+			} else {
+				sata_version_from_word222(word222)
+			}
+		},
+		sata_speed_max: sata_speed_from_word(data[76]),
+		sata_speed_current: sata_speed_from_word(data[77])
+			.or_else(|| sata_speed_from_word(data[78])),
 
 		commands_supported: IdCommands {
 			// XXX these, according to ATA8-ACS rev 62, should be mirrored in 'feature status' words
