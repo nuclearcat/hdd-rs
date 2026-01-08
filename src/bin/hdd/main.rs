@@ -24,14 +24,8 @@ use hdd::drivedb;
 use hdd::ata::misc::{self, Misc};
 use hdd::scsi::ATAError;
 
-#[macro_use]
-extern crate clap;
-use clap::{
-	App,
-	AppSettings,
-	Arg,
-	Values,
-};
+use clap::{Arg, ArgAction, Command};
+use clap::builder::PossibleValuesParser;
 
 extern crate serde_json;
 extern crate separator;
@@ -48,7 +42,7 @@ use std::path::Path;
 #[macro_use]
 extern crate lazy_static;
 mod subcommands;
-use subcommands::SUBCOMMANDS;
+use crate::subcommands::SUBCOMMANDS;
 
 pub fn when_smart_enabled<F>(status: &id::Ternary, action_name: &str, mut action: F) where F: FnMut() -> () {
 	match status {
@@ -70,12 +64,12 @@ static drivedb_additional_default: [&'static str; 1] = [
 ];
 
 /// Returns concatenated list of entries from main and additional drivedb files, falling back to built-in paths if none were provided.
-pub fn open_drivedb(options: Option<Values>) -> Option<drivedb::DriveDB> {
-	let options = options
-		.map(|vals| vals.collect())
-		.unwrap_or_else(|| vec![]);
+pub fn open_drivedb(options: Option<Vec<String>>) -> Option<drivedb::DriveDB> {
+	let options = options.unwrap_or_default();
 
-	let (paths_add, paths_main): (Vec<&str>, Vec<&str>) = options.iter().partition(|path| path.starts_with('+'));
+	let (paths_add, paths_main): (Vec<&str>, Vec<&str>) = options.iter()
+		.map(|path| path.as_str())
+		.partition(|path| path.starts_with('+'));
 
 	// trim leading '+'
 	let paths_add: Vec<&str> = paths_add.iter().map(|path| &path[1..]).collect();
@@ -123,16 +117,40 @@ pub fn open_drivedb(options: Option<Values>) -> Option<drivedb::DriveDB> {
 	loader.db().ok()
 }
 
-// cannot use #[cfg(…)] in arg_enum!, hence code duplication
-
 #[cfg(target_os = "linux")]
-arg_enum! {
-	enum Type { Auto, SAT, SCSI }
-}
+#[derive(Debug, Clone, Copy)]
+enum Type { Auto, SAT, SCSI }
 
 #[cfg(target_os = "freebsd")]
-arg_enum! {
-	enum Type { Auto, ATA, SAT, SCSI }
+#[derive(Debug, Clone, Copy)]
+enum Type { Auto, ATA, SAT, SCSI }
+
+impl Type {
+	fn variants() -> &'static [&'static str] {
+		#[cfg(target_os = "linux")]
+		{
+			&["auto", "sat", "scsi"]
+		}
+		#[cfg(target_os = "freebsd")]
+		{
+			&["auto", "ata", "sat", "scsi"]
+		}
+	}
+}
+
+impl ::std::str::FromStr for Type {
+	type Err = ();
+
+	fn from_str(s: &str) -> Result<Self, Self::Err> {
+		match s.to_ascii_lowercase().as_str() {
+			"auto" => Ok(Type::Auto),
+			"sat" => Ok(Type::SAT),
+			"scsi" => Ok(Type::SCSI),
+			#[cfg(target_os = "freebsd")]
+			"ata" => Ok(Type::ATA),
+			_ => Err(()),
+		}
+	}
 }
 
 #[derive(Debug)]
@@ -155,30 +173,22 @@ fn main() {
 
 	see also https://github.com/kbknapp/clap-rs/issues/891
 	*/
-	let type_variants: Vec<_> = Type::variants().iter()
-		.map(|s| std::ascii::AsciiExt::to_ascii_lowercase(s.to_owned()))
-		.collect();
-	// we'll never need original values, so shadow them with the references
-	let type_variants: Vec<_> = type_variants.iter()
-		.map(|s| &**s)
-		.collect();
-
-	let args = App::new("hdd")
+	let args = {
+		let mut cmd = Command::new("hdd")
 		.about("yet another disk querying tool")
-		.version(crate_version!())
-		.setting(AppSettings::SubcommandRequired)
-		.subcommands(SUBCOMMANDS.values().map(|&subcommand| subcommand.subcommand()))
-		.arg(Arg::with_name("type")
-			.short("t")
+		.version(env!("CARGO_PKG_VERSION"))
+		.subcommand_required(true)
+		.arg(Arg::new("type")
+			.short('t')
 			.long("type")
-			.takes_value(true)
-			.possible_values(type_variants.as_slice())
+			.value_parser(PossibleValuesParser::new(Type::variants()))
+			.default_value("auto")
 			.help("device type")
 		)
-		.arg(Arg::with_name("debug")
-			.short("d")
+		.arg(Arg::new("debug")
+			.short('d')
 			.long("debug")
-			.multiple(true)
+			.action(ArgAction::Count)
 			.help("Verbose output: set once to log actions, twice to also show raw data buffers\ncan also be set though env_logger's RUST_LOG env")
 		)
 		/*
@@ -189,20 +199,24 @@ fn main() {
 		  - write a loop (e.g. `for d in /dev/sd?; do hdd $d info; done`),
 		  - my guess is you're just interested in disk attributes, in which case you should really be looking into your monitoring system (doesn't matter whether it's local or remote).
 		*/
-		.arg(Arg::with_name("device")
+		.arg(Arg::new("device")
 			.help("Device to query")
 			//.required(true) // optional for 'list' subcommand, required for anything else
 			.index(1)
-		)
-		.get_matches();
+		);
+		for subcommand in SUBCOMMANDS.values() {
+			cmd = cmd.subcommand(subcommand.subcommand());
+		}
+		cmd.get_matches()
+	};
 
 	if let Ok(var) = std::env::var("RUST_LOG") {
-		log.parse(&var);
+		log.parse_filters(&var);
 	}
 	// -d takes precedence over RUST_LOG which some might export globally for some reasons
 	log.filter(Some("hdd"), {
 		use self::LevelFilter::*;
-		match args.occurrences_of("debug") {
+	match args.get_count("debug") {
 			0 => Warn,
 			1 => Info,
 			_ => Debug,
@@ -210,17 +224,17 @@ fn main() {
 	});
 	log.init();
 
-	let path = args.value_of("device").map(|path| Path::new(path));
+	let path = args.get_one::<String>("device").map(|path| Path::new(path));
 	let dev = path.map(|p| Device::open(p).unwrap());
 
-	let dtype = args.value_of("type")
+	let dtype = args.get_one::<String>("type")
+		.map(|s| s.as_str())
 		.unwrap_or("auto")
 		.parse::<Type>().unwrap();
 
-	let (subcommand, sargs) = args.subcommand();
+	let (subcommand, sargs) = args.subcommand().unwrap();
 	// unwrap() ×2: clap should not allow subcommands that do not exist
 	let subcommand = SUBCOMMANDS.get(subcommand).unwrap();
-	let sargs = sargs.unwrap();
 
 	/*
 	Why do we issue ATA IDENTIFY DEVICE here?

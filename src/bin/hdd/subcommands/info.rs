@@ -5,17 +5,15 @@ use hdd::scsi::data::inquiry;
 
 use clap::{
 	ArgMatches,
-	App,
-	SubCommand,
+	Command,
 };
 
 use serde_json;
-use serde_json::value::ToJson;
 
 use separator::Separatable;
-use number_prefix::{decimal_prefix, binary_prefix, Standalone, Prefixed};
+use number_prefix::NumberPrefix;
 
-use ::{DeviceArgument, open_drivedb};
+use crate::{DeviceArgument, open_drivedb};
 use super::{Subcommand, arg_json, arg_drivedb};
 
 use std::path::Path;
@@ -56,13 +54,13 @@ fn print_ata_id(id: &id::Id, meta: &Option<drivedb::DriveMeta>) {
 
 	print!("Capacity: {} bytes\n", id.capacity.separated_string());
 	print!("          ({}, {})\n",
-		match decimal_prefix(id.capacity as f32) {
-			Prefixed(p, x) => format!("{:.1} {}B", x, p),
-			Standalone(x)  => format!("{} bytes", x),
+		match NumberPrefix::decimal(id.capacity as f64) {
+			NumberPrefix::Prefixed(p, x) => format!("{:.1} {}B", x, p),
+			NumberPrefix::Standalone(x)  => format!("{} bytes", x),
 		},
-		match binary_prefix(id.capacity as f32) {
-			Prefixed(p, x) => format!("{:.1} {}B", x, p),
-			Standalone(x)  => format!("{} bytes", x),
+		match NumberPrefix::binary(id.capacity as f64) {
+			NumberPrefix::Prefixed(p, x) => format!("{:.1} {}B", x, p),
+			NumberPrefix::Standalone(x)  => format!("{} bytes", x),
 		},
 	);
 	print!("Sector size (logical):  {}\n", id.sector_size_log);
@@ -105,8 +103,8 @@ fn print_scsi_id(inquiry: &inquiry::Inquiry) {
 
 pub struct Info {}
 impl Subcommand for Info {
-	fn subcommand(&self) -> App<'static, 'static> {
-		SubCommand::with_name("info")
+	fn subcommand(&self) -> Command {
+		Command::new("info")
 			.about("Prints a basic information about the device")
 			.arg(arg_json())
 			.arg(arg_drivedb())
@@ -131,14 +129,14 @@ impl Subcommand for Info {
 			DeviceArgument::SCSI(_) => None,
 		};
 
-		let use_json = args.is_present("json");
+		let use_json = args.get_flag("json");
 
 		if let DeviceArgument::SCSI(dev) = dev {
 			let (_sense, data) = dev.scsi_inquiry(false, 0).unwrap();
 			let inquiry = inquiry::parse_inquiry(&data);
 
 			if use_json {
-				let info = inquiry.to_json().unwrap();
+				let info = serde_json::to_value(&inquiry).unwrap();
 				print!("{}\n", serde_json::to_string(&info).unwrap());
 			} else {
 				print_scsi_id(&inquiry);
@@ -146,7 +144,8 @@ impl Subcommand for Info {
 		}
 
 		if let Some(id) = ata_id {
-			let drivedb = open_drivedb(args.values_of("drivedb"));
+			let drivedb = open_drivedb(args.get_many::<String>("drivedb")
+				.map(|vals| vals.map(|v| v.to_string()).collect()));
 			let meta = drivedb.as_ref().map(|drivedb| drivedb.render_meta(
 				&id,
 				// no need to parse custom vendor attributes,
@@ -155,14 +154,20 @@ impl Subcommand for Info {
 			));
 
 			if use_json {
-				let mut info = id.to_json().unwrap();
+				let mut info = serde_json::to_value(&id).unwrap();
 
 				if let Some(meta) = &meta {
 					if let Some(family) = meta.family {
-						info.as_object_mut().unwrap().insert("family".to_string(), family.to_json().unwrap());
+						info.as_object_mut().unwrap().insert(
+							"family".to_string(),
+							serde_json::to_value(family).unwrap(),
+						);
 					}
 					if let Some(warning) = meta.warning {
-						info.as_object_mut().unwrap().insert("warning".to_string(), warning.to_json().unwrap());
+						info.as_object_mut().unwrap().insert(
+							"warning".to_string(),
+							serde_json::to_value(warning).unwrap(),
+						);
 					}
 				}
 

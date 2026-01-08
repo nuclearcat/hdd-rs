@@ -2,21 +2,20 @@ use hdd::device::list_devices;
 
 use clap::{
 	ArgMatches,
-	App,
-	SubCommand,
+	Command,
 };
 
 use serde_json;
 
-use ::DeviceArgument;
+use crate::DeviceArgument;
 use super::{Subcommand, arg_json};
 
 use std::path::Path;
 
 pub struct List {}
 impl Subcommand for List {
-	fn subcommand(&self) -> App<'static, 'static> {
-		SubCommand::with_name("list")
+	fn subcommand(&self) -> Command {
+		Command::new("list")
 			.about("Lists disk devices")
 			.arg(arg_json())
 	}
@@ -38,7 +37,7 @@ impl Subcommand for List {
 			::std::process::exit(1);
 		});
 
-		if args.is_present("json") {
+		if args.get_flag("json") {
 			print!("{}\n", serde_json::to_string(&devs).unwrap());
 		} else {
 			for dev in devs {

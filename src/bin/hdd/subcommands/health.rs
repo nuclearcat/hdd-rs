@@ -1,23 +1,21 @@
 use hdd::ata::misc::Misc;
 
 use clap::{
-	App,
 	ArgMatches,
-	SubCommand,
+	Command,
 };
 
 use serde_json;
-use serde_json::value::ToJson;
 
-use ::{DeviceArgument, when_smart_enabled};
+use crate::{DeviceArgument, when_smart_enabled};
 use super::{Subcommand, arg_json};
 
 use std::path::Path;
 
 pub struct Health {}
 impl Subcommand for Health {
-	fn subcommand(&self) -> App<'static, 'static> {
-		SubCommand::with_name("health")
+	fn subcommand(&self) -> Command {
+		Command::new("health")
 			.about("Prints the health status of the device")
 			.arg(arg_json())
 	}
@@ -41,7 +39,7 @@ impl Subcommand for Health {
 			DeviceArgument::SCSI(_) => unimplemented!(),
 		};
 
-		let use_json = args.is_present("json");
+		let use_json = args.get_flag("json");
 
 		when_smart_enabled(&id.smart, "health status", || {
 			let status = match dev {
@@ -52,7 +50,7 @@ impl Subcommand for Health {
 			};
 
 			if use_json {
-				print!("{}\n", serde_json::to_string(&status.to_json().unwrap()).unwrap());
+				print!("{}\n", serde_json::to_string(&status).unwrap());
 			} else {
 				print!("S.M.A.R.T. health status: {}\n", match status {
 					Some(true) => "good",

@@ -2,6 +2,7 @@ use hdd::ata::misc::Misc;
 
 use hdd::ata::data::attr;
 use hdd::ata::data::attr::raw::Raw;
+use hdd::ata::data::id;
 use hdd::drivedb;
 use hdd::drivedb::vendor_attribute;
 
@@ -12,12 +13,10 @@ use hdd::scsi::data::inquiry;
 use clap::{
 	Arg,
 	ArgMatches,
-	App,
-	SubCommand,
+	Command,
 };
 
 use serde_json;
-use serde_json::value::ToJson;
 
 use std::collections::HashMap;
 use std::string::ToString;
@@ -25,15 +24,17 @@ use std::path::Path;
 
 use std::f64::NAN;
 
-use number_prefix::{decimal_prefix, binary_prefix, Prefixed, Standalone};
+use number_prefix::NumberPrefix;
 
 use prettytable;
-use prettytable::Table;
-use prettytable::row::Row;
-use prettytable::cell::Cell;
+use prettytable::{Table, Row, Cell};
 
-use ::{DeviceArgument, open_drivedb};
+use crate::{DeviceArgument, open_drivedb};
 use super::{Subcommand, arg_drivedb};
+
+fn to_json_value<T: serde::Serialize>(value: &T) -> serde_json::Value {
+	serde_json::to_value(value).unwrap()
+}
 
 fn bool_to_flag(b: bool, c: char) -> char {
 	if b { c } else { '-' }
@@ -147,31 +148,32 @@ fn print_prometheus_values(labels: &HashMap<&str, String>, values: Vec<attr::Sma
 
 pub struct Attrs {}
 impl Subcommand for Attrs {
-	fn subcommand(&self) -> App<'static, 'static> {
-		SubCommand::with_name("attrs")
+	fn subcommand(&self) -> Command {
+		Command::new("attrs")
 			.about("Prints a list of S.M.A.R.T. attributes")
-			.arg(Arg::with_name("format")
+			.arg(Arg::new("format")
 				.long("format")
-				.takes_value(true)
-				.possible_values(&["plain", "json", "prometheus"])
+				.num_args(1)
+				.value_parser(["plain", "json", "prometheus"])
 				.help("format to export data in")
 			)
-			.arg(Arg::with_name("full-path")
+			.arg(Arg::new("full-path")
 				.long("full-path")
+				.action(clap::ArgAction::SetTrue)
 				.help("whether to use full device path if exporting in prometheus format")
 			)
-			.arg(Arg::with_name("json")
+			.arg(Arg::new("json")
 				.long("json")
+				.action(clap::ArgAction::SetTrue)
 				// for consistency with other subcommands
 				.help("alias for --format=json")
-				.overrides_with("format")
 			)
 			.arg(arg_drivedb())
-			.arg(Arg::with_name("vendorattribute")
-				.multiple(true)
-				.short("v") // smartctl-like
+			.arg(Arg::new("vendorattribute")
+				.action(clap::ArgAction::Append)
+				.short('v') // smartctl-like
 				.long("vendorattribute") // smartctl-like
-				.takes_value(true)
+				.num_args(1)
 				.value_name("id,format[:byteorder][,name]")
 				.help("set display option for vendor attribute 'id'")
 			)
@@ -190,32 +192,31 @@ impl Subcommand for Attrs {
 		});
 		let path = path.unwrap(); // `path` and `dev` are both `Some()` or both `None`
 
-		let path = if args.is_present("full-path") {
+		let path = if args.get_flag("full-path") {
 			path.to_str()
 		} else {
 			path.file_name().unwrap().to_str()
 		}.unwrap();
 
-		let format = match args.value_of("format") {
+		let format = match args.get_one::<String>("format").map(|s| s.as_str()) {
 			Some("plain") => Plain,
 			Some("json") => JSON,
 			Some("prometheus") => Prometheus,
-			None if args.is_present("json") => JSON,
+			None if args.get_flag("json") => JSON,
 			None => Plain,
 			_ => unreachable!(),
 		};
 
-		let user_attributes = args.values_of("vendorattribute")
-			.map(|attrs| attrs.collect())
-			.unwrap_or(vec![])
+		let user_attributes = args.get_many::<String>("vendorattribute")
+			.map(|attrs| attrs.map(|attr| attr.as_str()).collect::<Vec<_>>())
+			.unwrap_or_default()
 			.into_iter()
-			.map(|attr| vendor_attribute::parse(attr).ok()) // TODO Err(_)
-			.filter(|x| x.is_some())
-			.map(|x| x.unwrap())
+			.filter_map(|attr| vendor_attribute::parse(attr).ok()) // TODO Err(_)
 			.collect();
-		let drivedb = open_drivedb(args.values_of("drivedb"));
+		let drivedb = open_drivedb(args.get_many::<String>("drivedb")
+			.map(|vals| vals.map(|v| v.to_string()).collect()));
 
-		use DeviceArgument::*;
+		use crate::DeviceArgument::*;
 		match dev {
 			#[cfg(not(target_os = "linux"))]
 			dev @ ATA(_, _) => attrs_ata(path, dev, format, drivedb, user_attributes),
@@ -283,7 +284,7 @@ fn attrs_ata(path: &str, dev: &DeviceArgument, format: Format, drivedb: Option<d
 				Plain => print_attributes(values),
 				JSON => print!("{}\n",
 					serde_json::to_string(
-						&values.to_json().unwrap()
+						&to_json_value(&values)
 					).unwrap()
 				),
 				Prometheus => {
@@ -348,7 +349,7 @@ fn scsi_error_counters_json(counters: &HashMap<ErrorCounter, u64>) -> serde_json
 
 	use self::ErrorCounter::*;
 	for (&k, &v) in counters {
-		let v = v.to_json().unwrap();
+		let v = to_json_value(&v);
 		match k {
 			// TODO? submaps for CRC, totals
 
@@ -367,7 +368,7 @@ fn scsi_error_counters_json(counters: &HashMap<ErrorCounter, u64>) -> serde_json
 		};
 	}
 
-	json.to_json().unwrap()
+	serde_json::Value::Object(json)
 }
 
 fn print_human_scsi_error_counters(counters: &Vec<(&str, HashMap<ErrorCounter, u64>)>) {
@@ -446,14 +447,14 @@ fn print_human_scsi_error_counters(counters: &Vec<(&str, HashMap<ErrorCounter, u
 				.map_or(
 					"-".to_string(),
 					if key == BytesProcessed {
-						(|&v| match binary_prefix(v as f32) {
-							Prefixed(p, x) => format!("{:.1} {}B", x, p),
-							Standalone(x)  => format!("{} B", x),
+						(|&v| match NumberPrefix::binary(v as f64) {
+							NumberPrefix::Prefixed(p, x) => format!("{:.1} {}B", x, p),
+							NumberPrefix::Standalone(x)  => format!("{} B", x),
 						}) as fn(&u64) -> String
 					} else {
-						(|&v| match decimal_prefix(v as f32) {
-							Prefixed(p, x) => format!("{:.1}{}", x, p),
-							Standalone(x)  => format!("{}", x),
+						(|&v| match NumberPrefix::decimal(v as f64) {
+							NumberPrefix::Prefixed(p, x) => format!("{:.1}{}", x, p),
+							NumberPrefix::Standalone(x)  => format!("{}", x),
 						}) as fn(&u64) -> String
 					},
 				)
@@ -536,7 +537,7 @@ fn attrs_scsi(path: &str, dev: &DeviceArgument, format: Format) {
 				print!("\nNon-medium errors: {}\n", x);
 			},
 			JSON => {
-				json.insert("non-medium-errors".to_string(), x.to_json().unwrap());
+				json.insert("non-medium-errors".to_string(), to_json_value(&x));
 			},
 		}
 	}
@@ -561,9 +562,9 @@ fn attrs_scsi(path: &str, dev: &DeviceArgument, format: Format) {
 			},
 			JSON => {
 				let mut tmp = serde_json::Map::new();
-				tmp.insert("current".to_string(), temp.to_json().unwrap());
-				tmp.insert("reference".to_string(), ref_temp.to_json().unwrap());
-				json.insert("temperature".to_string(), tmp.to_json().unwrap());
+				tmp.insert("current".to_string(), to_json_value(&temp));
+				tmp.insert("reference".to_string(), to_json_value(&ref_temp));
+				json.insert("temperature".to_string(), serde_json::Value::Object(tmp));
 			},
 		}
 	}
@@ -606,16 +607,16 @@ fn attrs_scsi(path: &str, dev: &DeviceArgument, format: Format) {
 				let mut tmp = serde_json::Map::new();
 
 				let mut values = serde_json::Map::new();
-				values.insert("current".to_string(), cycles.start_stop_cycles.to_json().unwrap());
-				values.insert("lifetime".to_string(), cycles.lifetime_start_stop_cycles.to_json().unwrap());
-				tmp.insert("start-stop".to_string(), values.to_json().unwrap());
+				values.insert("current".to_string(), to_json_value(&cycles.start_stop_cycles));
+				values.insert("lifetime".to_string(), to_json_value(&cycles.lifetime_start_stop_cycles));
+				tmp.insert("start-stop".to_string(), serde_json::Value::Object(values));
 
 				let mut values = serde_json::Map::new();
-				values.insert("current".to_string(), cycles.load_unload_cycles.to_json().unwrap());
-				values.insert("lifetime".to_string(), cycles.lifetime_load_unload_cycles.to_json().unwrap());
-				tmp.insert("load-unload".to_string(), values.to_json().unwrap());
+				values.insert("current".to_string(), to_json_value(&cycles.load_unload_cycles));
+				values.insert("lifetime".to_string(), to_json_value(&cycles.lifetime_load_unload_cycles));
+				tmp.insert("load-unload".to_string(), serde_json::Value::Object(values));
 
-				json.insert("cycles".to_string(), tmp.to_json().unwrap());
+				json.insert("cycles".to_string(), serde_json::Value::Object(tmp));
 			},
 		}
 	}
@@ -635,8 +636,8 @@ fn attrs_scsi(path: &str, dev: &DeviceArgument, format: Format) {
 			},
 			JSON => {
 				let mut tmp = serde_json::Map::new();
-				tmp.insert("grown".to_string(), defects.to_json().unwrap());
-				json.insert("defect-list".to_string(), tmp.to_json().unwrap());
+				tmp.insert("grown".to_string(), to_json_value(&defects));
+				json.insert("defect-list".to_string(), serde_json::Value::Object(tmp));
 			},
 		}
 	}
