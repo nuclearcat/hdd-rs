@@ -13,6 +13,29 @@ fn read_string(arr: &Vec<u16>, start: usize, fin: usize) -> String {
 	String::from(output.trim())
 }
 
+fn major_version_from_word80(word80: u16) -> Option<&'static str> {
+	let word80 = word80 & 0x7ffe;
+	if word80 == 0 {
+		return None;
+	}
+
+	let highest = (1..=14).rev().find(|bit| word80 & (1 << bit) != 0)?;
+	match highest {
+		1 => Some("ATA-1 (minor revision not indicated)"),
+		2 => Some("ATA-2 (minor revision not indicated)"),
+		3 => Some("ATA-3 (minor revision not indicated)"),
+		4 => Some("ATA/ATAPI-4 (minor revision not indicated)"),
+		5 => Some("ATA/ATAPI-5 (minor revision not indicated)"),
+		6 => Some("ATA/ATAPI-6 (minor revision not indicated)"),
+		7 => Some("ATA/ATAPI-7 (minor revision not indicated)"),
+		8 => Some("ATA8-ACS (minor revision not indicated)"),
+		9 => Some("ACS-2 (minor revision not indicated)"),
+		10 => Some("ACS-3 (minor revision not indicated)"),
+		11 => Some("ACS-4 (minor revision not indicated)"),
+		_ => None,
+	}
+}
+
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 #[cfg_attr(feature = "serializable", derive(Serialize))]
 pub enum Ternary {
@@ -275,9 +298,8 @@ pub fn parse_id(data: &Vec<u8>) -> Id {
 
 		trusted_computing_supported: is_set(data[48], 0),
 
-		// TODO word 80: major revision number compatibility bits (if not 0x0000 nor 0xffff)
 		ata_version: {
-			let ata_version = match data[81] {
+			let ata_version_minor = match data[81] {
 			0x0001 ..= 0x000c => Some("(obsolete)"),
 
 			0x000d => Some("ATA/ATAPI-4 X3T13 1153D revision 6"),
@@ -333,14 +355,35 @@ pub fn parse_id(data: &Vec<u8>) -> Id {
 			0x0000 | 0xffff => None, // revision is not reported
 			_ => None, // reserved values
 		};
-			if ata_version.is_none() {
-				debug!(
-					"ATA version is unknown (word80=0x{:04x}, word81=0x{:04x})",
-					data[80],
-					data[81],
-				);
+			if ata_version_minor.is_some() {
+				ata_version_minor
+			} else {
+				let word80 = data[80];
+				let major = if word80 == 0x0000 || word80 == 0xffff {
+					None
+				} else {
+					major_version_from_word80(word80)
+				};
+				match major {
+					Some(major) => {
+						debug!(
+							"ATA minor revision not indicated (word80=0x{:04x}, word81=0x{:04x}); using {}",
+							data[80],
+							data[81],
+							major,
+						);
+						Some(major)
+					},
+					None => {
+						debug!(
+							"ATA version is unknown (word80=0x{:04x}, word81=0x{:04x})",
+							data[80],
+							data[81],
+						);
+						None
+					},
+				}
 			}
-			ata_version
 		},
 
 		commands_supported: IdCommands {
