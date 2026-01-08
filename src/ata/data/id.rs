@@ -134,6 +134,9 @@ pub struct Id {
 	pub sata_version: Option<&'static str>,
 	pub sata_speed_max: Option<&'static str>,
 	pub sata_speed_current: Option<&'static str>,
+	pub trim_supported: bool,
+	pub trim_deterministic: bool,
+	pub trim_zeroed: bool,
 
 	pub commands_supported: IdCommands,
 
@@ -436,6 +439,9 @@ pub fn parse_id(data: &Vec<u8>) -> Id {
 		sata_speed_max: sata_speed_from_word(data[76]),
 		sata_speed_current: sata_speed_from_word(data[77])
 			.or_else(|| sata_speed_from_word(data[78])),
+		trim_supported: data[169] & 0b0000_0000_0000_0001 != 0,
+		trim_deterministic: data[169] & 0b0000_0000_0000_0010 != 0,
+		trim_zeroed: data[169] & 0b0000_0000_0000_0100 != 0,
 
 		commands_supported: IdCommands {
 			// XXX these, according to ATA8-ACS rev 62, should be mirrored in 'feature status' words

@@ -79,6 +79,21 @@ fn print_ata_id(id: &id::Id, meta: &Option<drivedb::DriveMeta>) {
 		}
 		print!("SATA Version:\n{}\n", details);
 	}
+	print!(
+		"TRIM Command:     {}\n",
+		if !id.trim_supported {
+			"not supported".to_string()
+		} else {
+			let mut details = vec!["Available"];
+			if id.trim_deterministic {
+				details.push("deterministic");
+			}
+			if id.trim_zeroed {
+				details.push("zeroed");
+			}
+			details.join(", ")
+		}
+	);
 
 	print!("\n");
 
